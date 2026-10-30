@@ -1,0 +1,7 @@
+data/*
+!data/ratings.jsonl
+__pycache__/
+.vscode/
+*.zip
+submission/submission_config.json
+submission/_rating_cache.jsonl

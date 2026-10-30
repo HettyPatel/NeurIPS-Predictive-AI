@@ -1,0 +1,18 @@
+{
+ "n_layers": 3,
+ "bench_strength": 2.0,
+ "subject_strength": 2.0,
+ "item_strength": 0.5,
+ "prior_scale": 0.5,
+ "rating_weight": {
+  "knowledge": 1.0,
+  "reasoning_math": 0.8,
+  "coding": 0.6,
+  "legal_medical_finance": 0.5,
+  "agentic_tool_use": 0.0,
+  "multimodal": 0.0,
+  "default": 0.3
+ },
+ "live_rating": true,
+ "max_live_ratings": 60000
+}
