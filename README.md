@@ -25,7 +25,7 @@ Team: Het Patel, Suki Angeles, Dawon Ahn, Vagelis Papalexakis (UC Riverside / US
 
 | setting | ours | hierarchical mean |
 |---|---|---|
-| DEV, 13 held-out benchmarks, 819 pairs | **0.194** | 0.228 |
+| DEV, 13 held-out benchmarks, 819 pairs | **0.194** | 0.229 |
 | Codabench formative, seven runs of the same method (9 pairs each) | 0.169 - 0.209, mean 0.191 | 0.214 |
 
 The formative board draws nine pairs per run and reshuffles the label order, which moves a score by about
