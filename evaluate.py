@@ -185,7 +185,21 @@ DEV = ["hallusionbench", "ikp", "multi_swebench", "mmlupro", "editbench", "swebe
        "workbench_revisited", "hle"]
 
 
-def evaluate(predictor, benchmarks=DEV, train_pool=None, seed=0, max_eval_items=100, items_subset=None, min_items=MIN_ITEMS, verbose=True):
+def keep_subjects(records, k, seed, min_items=MIN_ITEMS):
+    """The records of k subjects of one benchmark, drawn at random (seeded) from the subjects that
+    form a scored pair, i.e. have at least min_items distinct items. Fewer than k eligible: keep all."""
+    counts = defaultdict(set)
+    for r in records:
+        counts[r["subject_id"]].add(r["item_id"])
+    eligible = sorted(s for s, items in counts.items() if len(items) >= min_items)
+    if len(eligible) > k:
+        eligible = _rng("subjects", seed, records[0]["item"]["benchmark_id"]).sample(eligible, k)
+    keep = set(eligible)
+    return [r for r in records if r["subject_id"] in keep]
+
+
+def evaluate(predictor, benchmarks=DEV, train_pool=None, seed=0, max_eval_items=100, items_subset=None, min_items=MIN_ITEMS, verbose=True,
+             n_subjects=None, subject_seed=0):
     """Leave one benchmark out evaluation every pair weighted equally as on the platform
     
     'predictor' is a predict(intput, labeled) function or an object with .predict and optionally .fit(benchmark_names) and .predict_many(input, labeled) if it has .fit it is refit on train_pool
@@ -213,6 +227,9 @@ def evaluate(predictor, benchmarks=DEV, train_pool=None, seed=0, max_eval_items=
         if items_subset is not None: # only items that have an LLM rating
             keep = items_subset.get(name, set())
             records = [r for r in records if r["item_id"] in keep]
+
+        if n_subjects is not None:   # sparse-coverage variant: only n_subjects subjects exist on the benchmark
+            records = keep_subjects(records, n_subjects, subject_seed, min_items)
 
         scores = evaluate_benchmark(predict, records, seed, max_eval_items, predict_many, min_items)
         if not scores:
