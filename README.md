@@ -7,6 +7,10 @@ Team: Het Patel, Suki Wang, Dawon Ahn, Vagelis Papalexakis (UC Riverside / USC /
 Report: *Predicting LLM Benchmark Performance from Few Labels: LLM-Rated Item Difficulty and Hierarchical
 Shrinkage for Cold-Start Evaluation* (TODO: add link). "The report" below means this paper.
 
+The competition scored entries on its own server: it loaded `submission/model.py` and called
+`predict(input, labeled)` on hidden benchmarks. That server may no longer be running. Nothing below needs it:
+`evaluate.py` runs the same protocol locally on public data.
+
 ## Method
 
     P(correct) = sigmoid( 0.5 * prior(subject) + w_domain * rating(item) + d_bench + d_subject + d_item )
@@ -39,7 +43,7 @@ Shrinkage for Cold-Start Evaluation* (TODO: add link). "The report" below means 
 | `experiments.py` | reruns the report's DEV experiments: main comparison, shift ablation, cache-fix check, sparse coverage |
 | `rate.py` | rates items with the LLM rater; `data/ratings.jsonl` is committed so evaluation needs no API key |
 | `train_and_zip.py` | trains on all 160 benchmarks and builds `submission.zip` |
-| `submission/model.py` | main method file; the platform imports it and calls `predict()` |
+| `submission/model.py` | main method file; `predict(input, labeled)` is the entry point the competition called |
 | `tests/test_shift_cache.py` | regression test: the cached shifts must depend on the whole reveal list |
 | `notebooks/data.ipynb`, `notebooks/modelTest.ipynb`, `notebooks/testing.ipynb` | data exploration; component checks and the DEV evaluation; checks of the evaluation protocol, the baselines, the embeddings and one live rating call |
 
@@ -56,10 +60,9 @@ Tested with Python 3.11, torch 2.15.0, sentence-transformers 6.3.0, anthropic 2.
 pandas 3.1.1, pyarrow 26.0.1, numpy 2.4.6 and scipy 1.17.1. If a later release breaks something, install these
 versions.
 
-**API key.** Needed only to rate items: the platform run, or `rate.py`. Put it in
-`submission/submission_config.json` as `{"anthropic_api_key": "<your key>"}` (gitignored; the file travels inside
-the zip so the platform can rate unseen items), or set `ANTHROPIC_API_KEY` in the environment. Without a key the
-model still runs and falls back to prior plus labels.
+**API key.** Needed only to rate new items, with `rate.py` or when `model.py` meets an item it has no rating for.
+Put it in `submission/submission_config.json` as `{"anthropic_api_key": "<your key>"}` (gitignored), or set
+`ANTHROPIC_API_KEY` in the environment. Without a key the model still runs and falls back to prior plus labels.
 
 ## Data and features
 
@@ -125,19 +128,19 @@ roughly $6; cached by item text, so reruns rate only what is missing), then `pyt
 rating-vs-accuracy correlation table on items with at least three responses (average within-benchmark
 Spearman +0.23).
 
-## Train and build the submission
+## How the competition submission was built
+
+This section records how the entry was packaged. It is not needed to reproduce the results above.
 
 ```bash
-python train_and_zip.py                                               # trains on all 160 benchmarks -> submission.zip
-python <paiec_baseline>/check_submission_zip.py submission.zip        # organizers' checker -> "OK"
+python train_and_zip.py      # trains the prior on all 160 benchmarks -> submission.zip
 ```
 
 `train_and_zip.py` needs `submission/submission_config.json` to exist (see **API key** above), because the key
-travels inside the zip. `<paiec_baseline>` is the path to your copy of the organizers' baseline repository, which
-contains the checker script.
+travelled inside the zip so that the model could rate unseen items on the competition server.
 
-The zip holds six files: `model.py`, `weights.npz`, `meta.json`, `models.txt` (MiniLM, pre-downloaded by the
-platform), `requirements.txt`, `submission_config.json`. On the platform, unseen items are rated live and cached in
+The zip holds six files: `model.py`, `weights.npz`, `meta.json`, `models.txt` (names the MiniLM encoder),
+`requirements.txt`, `submission_config.json`. Items without a rating are rated when first seen and cached in
 `_rating_cache.jsonl` next to the model, so each item costs one call (about $0.30 per 1,000 items).
 
 The committed `submission/weights.npz` is the one in the submitted zip.
