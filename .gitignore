@@ -5,3 +5,4 @@ __pycache__/
 *.zip
 submission/submission_config.json
 submission/_rating_cache.jsonl
+paper/
