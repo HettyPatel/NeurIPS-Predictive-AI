@@ -14,8 +14,7 @@ Team: Het Patel, Suki Wang, Dawon Ahn, Vagelis Papalexakis (UC Riverside / USC /
   from the labels. No item content: item embeddings ranked difficulty backwards on unseen benchmarks.
 - **rating**: `claude-haiku-5-5` is asked what share of frontier models would get the item right. The logit of
   that share enters with a per-domain weight (knowledge 1.0, math 0.8, coding 0.6, legal 0.5, agentic and
-  multimodal 0). This is the main part that moves budget 0 (0.245 -> 0.221). Ratings are cached on disk and shared
-  across the platform's worker processes; failures fall back to a neutral rating.
+  multimodal 0). This is the main part that moves budget 0 (0.245 -> 0.221).
 - **d_bench, d_subject, d_item**: one-number logistic shifts fit by six Newton steps on the revealed labels, each
   shrunk toward 0 (strengths 2, 2, 0.5): all labels on the benchmark, this subject's own, other subjects' on this
   exact item. With many subjects per benchmark `d_item` is most of the gain over the hierarchical mean; with one or
@@ -26,25 +25,8 @@ Team: Het Patel, Suki Wang, Dawon Ahn, Vagelis Papalexakis (UC Riverside / USC /
 | setting | ours | hierarchical mean |
 |---|---|---|
 | DEV, 13 held-out benchmarks, 819 pairs | **0.194** | 0.229 |
-| Codabench formative, seven runs of the same method (9 pairs each) | 0.169 - 0.209, mean 0.191 | 0.214 |
 
-The formative board draws nine pairs per run and reshuffles the label order, which moves a score by about
-+-0.015 on its own (one subject scored 0.216 and 0.242 in two runs of an identical zip). Method comparisons are
-made on DEV, where every variant is scored on the same 819 pairs.
 
-### Notes
-
-- `d_item` pools other subjects' labels on the same item, so it contributes most when a benchmark has many
-  scored subjects (as on DEV) and rarely activates when it has one or two (as on the hidden test); the rating
-  and the other two shifts carry the method in that case.
-- The rating is strong on the two knowledge benchmarks (ikp +0.91, mmlupro +0.59 within-benchmark Spearman with
-  item accuracy), weak to moderate on nine of the other eleven (+0.09 to +0.34), and uninformative on tau2_bench
-  and mtbbench (average +0.23 over the 13). The weights are set per domain, not per benchmark, which is coarse:
-  workbench_revisited (agentic, weight 0) has +0.34 while legalbench (weight 0.5) has +0.23.
-- Variants that were measured and not kept, all within 0.002 of this model on DEV or worse: item-text embeddings
-  in the prior, hand-crafted subject features, matrix-factorisation priors, TabPFN, per-pair rating slopes,
-  calibration layers, an uncertainty-sampling label-acquisition policy, prompt variants of the rater, open-weight
-  and fine-tuned raters, and longer or excerpted item text for the rater.
 
 ## Files
 
@@ -56,7 +38,7 @@ made on DEV, where every variant is scored on the same 819 pairs.
 | `experiments.py` | reruns the report's DEV experiments: main comparison, shift ablation, shift-cache check, sparse coverage |
 | `rate.py` | rates items with the LLM rater; `data/ratings.jsonl` is committed so evaluation needs no API key |
 | `train_and_zip.py` | trains on all 160 benchmarks and builds `submission.zip` |
-| `submission/model.py` | the whole method; the platform imports it and calls `predict()` |
+| `submission/model.py` | main method file; the platform imports it and calls `predict()` |
 | `tests/test_shift_cache.py` | regression test: the cached shifts must depend on the whole reveal list |
 | `notebooks/data.ipynb`, `notebooks/modelTest.ipynb` | data exploration; component checks and the DEV evaluation |
 
@@ -90,7 +72,7 @@ python features.py      # ~15 min on a GPU -> one .npz per benchmark; already-bu
   workbench_revisited, hle. For each DEV benchmark the prior is refit on the other 159, so the model never trains on
   a benchmark it is scored on.
 - **Pairs**: a (subject, benchmark) pair is scored if the subject answered at least 80 distinct items. Its items are
-  shuffled with a seed derived from the subject id and cut in half: labels are revealed from the first half, in
+  shuffled with a seed derived from the subject ID: labels are revealed from the first half, in
   order; the second half (up to 100 items) is scored. 819 pairs in total.
 - **Budgets**: predictions with 0, 1, 3, 7, 15 and 31 revealed labels (nested). Brier score per budget;
   ALC = weighted mean with weights 0.1, 0.2, 0.2, 0.2, 0.2, 0.1; pairs weighted equally.
@@ -121,9 +103,6 @@ Add `--max-eval-items 20` to score 20 items per pair, the setting the report's t
 | ours without the rating | 0.2095 | 0.244 | 0.172 |
 | ours | 0.1933 | 0.220 | 0.164 |
 
-The baselines and the shifts-only row are deterministic. The rows with the prior are from a CPU retrain; the
-report's values (0.210 and 0.194; 0.1938 unrounded) are from a GPU run. Training is not bit-identical across
-machines: expect the ALC within about 0.001 and each budget within about 0.002.
 
 **Sparse coverage (`sparse`).** On every DEV benchmark two subjects are drawn at random and all others are
 removed, so only those two subjects' labels are revealed or scored; 20 draws, 26 pairs each, every benchmark
