@@ -162,7 +162,7 @@ The rater is strong on knowledge/math items, weak on coding/agentic ones, and bl
 #
 # Numbers (Brier ALC, lower is better; 0.5 everywhere = 0.25):
 #   DEV, 13 held-out benchmarks, all subjects pooled:         0.194   (hierarchical mean 0.228)
-#   DEV, 1-2 subjects per benchmark like the hidden test:     0.207   (hierarchical mean 0.229)
+#   DEV, 2 random subjects per benchmark (experiments.py):    0.214   (hierarchical mean 0.227)
 #   Codabench formative runs, 9 pairs each, +-0.015 noise:    0.187 - 0.209
 # Everything else we tried (item embeddings, matrix factorisation, TabPFN, calibration, stronger or
 # batched raters, per-pair slopes, an uncertainty-sampling acquisition policy: +0.001 on DEV but worse
@@ -391,11 +391,21 @@ class Model:
         return w * math.log(p / (1 - p))
 
     # ------------------------------------------------------------ part 3: shifts from the reveals
+    @staticmethod
+    def _reveal_key(labeled):
+        """Fingerprint of the reveal list: every card in full (subject, benchmark, item text, label), in order."""
+        import hashlib
+        h = hashlib.sha256()
+        for (s, it), y in labeled:
+            for part in (subject_key(s), str(it.get("benchmark_id", "")), it.get("item_content") or "", repr(float(y))):
+                b = part.encode("utf-8", "replace")
+                h.update(len(b).to_bytes(8, "little")); h.update(b)   # length-prefixed, so fields cannot run together
+        return len(labeled), h.hexdigest()
+
     def _corrections(self, labeled):
         """Fit d_bench, d_subject, d_item from the revealed (subject, item, label) cards.
-        Cached on a fingerprint of the reveal list: predict() is called once per item with the same list."""
-        key = (len(labeled), subject_key(labeled[0][0][0]), labeled[0][1],
-               (labeled[-1][0][1].get("item_content") or "")[:80], labeled[-1][1])
+        Cached on the fingerprint of the reveal list: predict() is called once per item with the same list."""
+        key = self._reveal_key(labeled)
         if key == self._labeled_key:
             return self._corr
         subjects = [c[0][0] for c in labeled]
