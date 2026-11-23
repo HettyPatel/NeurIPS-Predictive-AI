@@ -131,10 +131,8 @@ weighted equally. Ours 0.214 against 0.227 for the hierarchical mean (difference
 19 of 20 draws); without `d_item` 0.215. With all subjects and the same equal weighting of benchmarks: 0.204
 against 0.222.
 
-**Shift cache.** The submitted `model.py` cached the fitted shifts under a fingerprint of the reveal list that
-covered only its length and parts of its first and last cards. The fingerprint now covers every card. On DEV the
-two give identical scores (the submitted key reused stale shifts on 0 of 4,095 calls, because the reveal list
-grows with each budget); `experiments.py cache` reproduces the comparison.
+**Change since the submitted entry.** `model.py` refits the shifts whenever any revealed outcome changes; the
+submitted version checked only part of the list. DEV scores are identical (`python experiments.py cache`).
 
 To re-rate items instead of using the committed ratings: `python rate.py --dev-full` (about 18,000 Haiku calls,
 roughly $6; cached by item text, so reruns rate only what is missing), then `python rate.py --analyze` for the
