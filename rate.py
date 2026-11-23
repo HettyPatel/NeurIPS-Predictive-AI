@@ -97,14 +97,18 @@ def rate_rows(rows, workers=8):
     print(f"rated {done} new items in {time.time() - t0:.0f}s")
 
 
-def analyze():
+def analyze(min_responses=3):
     """Does the rating track difficulty? Spearman correlation with item accuracy, within each
     benchmark (item level) and across benchmarks on their means (benchmark level).
-    Rows without an accuracy (ratings imported from elsewhere) are skipped."""
+    Only items with at least `min_responses` responses are used, so each has a usable observed
+    accuracy; rows without an accuracy (ratings imported from elsewhere) are skipped."""
     from scipy.stats import spearmanr
     df = pd.DataFrame(load_ratings().values())
     print(f"\n{len(df)} rated items across {df.benchmark.nunique()} benchmarks\n")
     df = df.dropna(subset=["p_correct", "acc"])
+    with_acc = len(df)
+    df = df[df.n >= min_responses]
+    print(f"{with_acc} have an observed accuracy, {len(df)} of them from at least {min_responses} responses\n")
     per = []
     for b, g in df.groupby("benchmark"):
         if len(g) >= 20:
@@ -123,9 +127,10 @@ if __name__ == "__main__":
     ap.add_argument("--dev-full", action="store_true", help="rate every item the DEV protocol uses")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--analyze", action="store_true")
+    ap.add_argument("--min-responses", type=int, default=3, help="items need this many responses to enter the correlation table")
     args = ap.parse_args()
     RATINGS.parent.mkdir(parents=True, exist_ok=True)
     if not args.analyze:
         rows = protocol_items(DEV) if args.dev_full else sample_items(DEV, args.per_benchmark)
         rate_rows(rows, args.workers)
-    analyze()
+    analyze(args.min_responses)
