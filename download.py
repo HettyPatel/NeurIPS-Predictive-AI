@@ -1,6 +1,7 @@
 """Download the training data from measurement-db on HuggingFace
 """
 
+import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -9,6 +10,9 @@ from huggingface_hub import HfApi, hf_hub_download
 from huggingface_hub.utils import EntryNotFoundError
 
 REPO = "aims-foundations/measurement-db"
+# The dataset commit to download. Pinned so the tables are the same on every machine;
+# set MEASUREMENT_DB_REVISION to another commit hash (or "main") to override.
+REVISION = os.environ.get("MEASUREMENT_DB_REVISION", "54074453da7b9911be0f48e4c560be547bc84d21")
 ROOT = Path(__file__).resolve().parent
 RAW = ROOT / "data" / "raw"            # hf_hub_download mirrors the dataset's folder layout here
 CATALOG = ROOT / "data" / "catalog.csv"
@@ -18,13 +22,13 @@ CATALOG = ROOT / "data" / "catalog.csv"
 def fetch(path):
     """download one file into data/raw. None if the folder has no such file"""
     try:
-        return hf_hub_download(REPO, path, repo_type="dataset", local_dir=RAW)
+        return hf_hub_download(REPO, path, repo_type="dataset", revision=REVISION, local_dir=RAW)
     except EntryNotFoundError:
         return None
 
 def build_catalog():
     # one API call lists the top-level folders; listing every file would take minutes
-    folders = sorted(e.path for e in HfApi().list_repo_tree(REPO, repo_type="dataset")
+    folders = sorted(e.path for e in HfApi().list_repo_tree(REPO, repo_type="dataset", revision=REVISION)
                      if e.path and not e.path.startswith(".") and "." not in e.path)
     print(f"{len(folders)} folders; fetching each benchmarks.parquet ...")
     with ThreadPoolExecutor(16) as pool:
@@ -63,6 +67,7 @@ def download_tables():
 
 if __name__ == "__main__":
     RAW.mkdir(parents=True, exist_ok=True)
+    print(f"{REPO} at revision {REVISION}")
     if not CATALOG.exists():
         build_catalog()
     download_tables()
