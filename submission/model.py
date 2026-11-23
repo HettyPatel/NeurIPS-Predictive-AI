@@ -68,8 +68,8 @@ def text_key(text):
 
 
 ##_______________ LLM ITEM-DIFFICULTY RATER _________####
-# Haiku is the cheapest model that rates well; Opus 5.5 rates slightly better (0.1803 vs 0.1849 on the
-# DEV subset) at ~10x the cost. rate.py rates DEV items offline; on the platform unseen items are rated live.
+# Haiku is the cheapest model that rates well. rate.py rates DEV items offline; items without a rating
+# are rated live when first seen.
 
 RATER_MODEL = "claude-haiku-5-5"
 RATER_MAX_CHARS = 3000
@@ -118,16 +118,17 @@ def rate_text(client, text):
 
 
 '''
-rate.py --dev-full: 21,888 rated items; within-benchmark Spearman(rating, item accuracy) on the 9,300 with accuracy:
+rate.py --dev-full: 21,888 rated items; within-benchmark Spearman(rating, item accuracy) on the 8,866
+items with at least three responses (rate.py --analyze):
 
   editbench                n= 344  +0.280        multi_swebench           n= 741  +0.113
   hallusionbench           n= 791  +0.188        real_webagents           n= 210  +0.111
-  hle                      n= 524  +0.129        researchcodebench        n= 207  +0.177
-  ikp                      n= 688  +0.907        swebench_live            n= 374  +0.120
-  legalbench               n=1664  +0.295        tau2_bench               n= 220  -0.068
-  mmlupro                  n=3042  +0.576        workbench_revisited      n= 263  +0.336
-  mtbbench                 n= 252  -0.088        average item-level corr: +0.237
-benchmark level (13): corr(mean rating, mean accuracy) = +0.396
+  hle                      n= 448  +0.088        researchcodebench        n= 207  +0.177
+  ikp                      n= 688  +0.907        swebench_live            n= 282  +0.188
+  legalbench               n=1402  +0.232        tau2_bench               n= 220  -0.068
+  mmlupro                  n=3018  +0.585        workbench_revisited      n= 263  +0.336
+  mtbbench                 n= 252  -0.088        average item-level corr: +0.235
+benchmark level (13): corr(mean rating, mean accuracy) = +0.440
 
 The rater is strong on knowledge/math items, weak on coding/agentic ones, and blind on multimodal ones
 (the image is not in the data) and on items whose first 3000 characters are a shared preamble.
@@ -144,7 +145,7 @@ The rater is strong on knowledge/math items, weak on coding/agentic ones, and bl
 #                 and even a perfect subject prior is worth only ~0.016 ALC (oracle test on DEV).
 #   2. rating     an LLM's estimate of how hard this item is (RATER_* above), as a logit weighted by
 #                 the item's domain (trust knowledge/math ratings fully, coding/legal partly, agentic
-#                 and multimodal not at all). The only signal that moves budget 0: 0.246 -> 0.221.
+#                 and multimodal not at all). The main signal that moves budget 0: 0.245 -> 0.221.
 #   3. shifts     three corrections estimated from the revealed labels, each a one-number logistic
 #                 fit shrunk toward 0 (Newton steps, a few lines of numpy):
 #                   d_bench    from every reveal on the benchmark   (fixes the benchmark's level)
@@ -161,7 +162,7 @@ The rater is strong on knowledge/math items, weak on coding/agentic ones, and bl
 # the reveal list changes (fingerprint check), so predict() is cheap per call.
 #
 # Numbers (Brier ALC, lower is better; 0.5 everywhere = 0.25):
-#   DEV, 13 held-out benchmarks, all subjects pooled:         0.194   (hierarchical mean 0.228)
+#   DEV, 13 held-out benchmarks, all subjects pooled:         0.194   (hierarchical mean 0.229)
 #   DEV, 2 random subjects per benchmark (experiments.py):    0.214   (hierarchical mean 0.227)
 #   Codabench formative runs, 9 pairs each, +-0.015 noise:    0.187 - 0.209
 # Everything else we tried (item embeddings, matrix factorisation, TabPFN, calibration, stronger or
