@@ -4,6 +4,9 @@ Predicts P(an AI system answers a benchmark item correctly) given the labels rev
 NeurIPS 2026 Predictive AI Evaluation Competition (Stanford AIMS).
 Team: Het Patel, Suki Wang, Dawon Ahn, Vagelis Papalexakis (UC Riverside / USC / Roblox).
 
+Report: *Predicting LLM Benchmark Performance from Few Labels: LLM-Rated Item Difficulty and Hierarchical
+Shrinkage for Cold-Start Evaluation* (TODO: add link). "The report" below means this paper.
+
 ## Method
 
     P(correct) = sigmoid( 0.5 * prior(subject) + w_domain * rating(item) + d_bench + d_subject + d_item )
@@ -26,8 +29,6 @@ Team: Het Patel, Suki Wang, Dawon Ahn, Vagelis Papalexakis (UC Riverside / USC /
 |---|---|---|
 | DEV, 13 held-out benchmarks, 819 pairs | **0.194** | 0.229 |
 
-
-
 ## Files
 
 | file | purpose |
@@ -35,21 +36,25 @@ Team: Het Patel, Suki Wang, Dawon Ahn, Vagelis Papalexakis (UC Riverside / USC /
 | `download.py` | downloads the dataset tables into `data/raw/` |
 | `features.py` | builds `data/feat/<benchmark>.npz`: subject-name embeddings, item lengths, soft labels |
 | `evaluate.py` | the competition protocol run locally, the DEV list, three baselines |
-| `experiments.py` | reruns the report's DEV experiments: main comparison, shift ablation, shift-cache check, sparse coverage |
+| `experiments.py` | reruns the report's DEV experiments: main comparison, shift ablation, cache-fix check, sparse coverage |
 | `rate.py` | rates items with the LLM rater; `data/ratings.jsonl` is committed so evaluation needs no API key |
 | `train_and_zip.py` | trains on all 160 benchmarks and builds `submission.zip` |
 | `submission/model.py` | main method file; the platform imports it and calls `predict()` |
 | `tests/test_shift_cache.py` | regression test: the cached shifts must depend on the whole reveal list |
-| `notebooks/data.ipynb`, `notebooks/modelTest.ipynb` | data exploration; component checks and the DEV evaluation |
+| `notebooks/data.ipynb`, `notebooks/modelTest.ipynb`, `notebooks/testing.ipynb` | data exploration; component checks and the DEV evaluation; checks of the evaluation protocol, the baselines, the embeddings and one live rating call |
 
 ## Setup
 
 ```bash
 conda create -n paiec python=3.11 -y && conda activate paiec
-pip install torch --index-url https://download.pytorch.org/whl/cu126      # or the CPU build
+pip install torch
 pip install sentence-transformers anthropic huggingface_hub pandas pyarrow numpy scipy jupyter
-huggingface-cli login                                                    # measurement-db is gated: accept its terms first
+hf auth login            # measurement-db is gated: accept its terms on Hugging Face first
 ```
+
+Tested with Python 3.11, torch 2.15.0, sentence-transformers 6.3.0, anthropic 2.12.0, huggingface_hub 2.4.0,
+pandas 3.1.1, pyarrow 26.0.1, numpy 2.4.6 and scipy 1.17.1. If a later release breaks something, install these
+versions.
 
 **API key.** Needed only to rate items: the platform run, or `rate.py`. Put it in
 `submission/submission_config.json` as `{"anthropic_api_key": "<your key>"}` (gitignored; the file travels inside
@@ -72,7 +77,7 @@ python features.py      # ~15 min on a GPU -> one .npz per benchmark; already-bu
   workbench_revisited, hle. For each DEV benchmark the prior is refit on the other 159, so the model never trains on
   a benchmark it is scored on.
 - **Pairs**: a (subject, benchmark) pair is scored if the subject answered at least 80 distinct items. Its items are
-  shuffled with a seed derived from the subject ID: labels are revealed from the first half, in
+  shuffled with a seed derived from the subject ID and split in half: labels are revealed from the first half, in
   order; the second half (up to 100 items) is scored. 819 pairs in total.
 - **Budgets**: predictions with 0, 1, 3, 7, 15 and 31 revealed labels (nested). Brier score per budget;
   ALC = weighted mean with weights 0.1, 0.2, 0.2, 0.2, 0.2, 0.1; pairs weighted equally.
@@ -85,7 +90,7 @@ python features.py      # ~15 min on a GPU -> one .npz per benchmark; already-bu
 ```bash
 python experiments.py main      # Table 1: baselines, shifts only, ours without the rating, ours
 python experiments.py ablate    # Table 2: one shift removed at a time
-python experiments.py cache     # submitted vs fixed shift-cache key
+python experiments.py cache     # checks that the cache fix leaves DEV scores unchanged
 python experiments.py all       # the three above, training the 13 leave-one-out priors once
 python experiments.py sparse    # Section 5: two randomly drawn subjects per benchmark, 20 draws
 python tests/test_shift_cache.py
@@ -103,6 +108,8 @@ Add `--max-eval-items 20` to score 20 items per pair, the setting the report's t
 | ours without the rating | 0.2095 | 0.244 | 0.172 |
 | ours | 0.1933 | 0.220 | 0.164 |
 
+Example output from one run. Retraining the prior gives slightly different numbers each time (up to about
+0.002), so your run and the report will not match to the last digit.
 
 **Sparse coverage (`sparse`).** On every DEV benchmark two subjects are drawn at random and all others are
 removed, so only those two subjects' labels are revealed or scored; 20 draws, 26 pairs each, every benchmark
@@ -113,25 +120,27 @@ against 0.222.
 **Change since the submitted entry.** `model.py` refits the shifts whenever any revealed outcome changes; the
 submitted version checked only part of the list. DEV scores are identical (`python experiments.py cache`).
 
-To re-rate items instead of using the committed ratings: `python rate.py --dev-full` (about 18,000 Haiku calls,
+To re-rate items instead of using the committed ratings: `python rate.py --dev-full` (about 22,000 Haiku calls,
 roughly $6; cached by item text, so reruns rate only what is missing), then `python rate.py --analyze` for the
 rating-vs-accuracy correlation table on items with at least three responses (average within-benchmark
 Spearman +0.23).
 
-## Train and build the submission (~3 min on a GPU)
+## Train and build the submission
 
 ```bash
 python train_and_zip.py                                               # trains on all 160 benchmarks -> submission.zip
 python <paiec_baseline>/check_submission_zip.py submission.zip        # organizers' checker -> "OK"
 ```
 
+`train_and_zip.py` needs `submission/submission_config.json` to exist (see **API key** above), because the key
+travels inside the zip. `<paiec_baseline>` is the path to your copy of the organizers' baseline repository, which
+contains the checker script.
+
 The zip holds six files: `model.py`, `weights.npz`, `meta.json`, `models.txt` (MiniLM, pre-downloaded by the
 platform), `requirements.txt`, `submission_config.json`. On the platform, unseen items are rated live and cached in
 `_rating_cache.jsonl` next to the model, so each item costs one call (about $0.30 per 1,000 items).
 
-The committed `submission/weights.npz` is the one in the submitted zip. GPU training is not bit-deterministic, so
-retraining gives different weights with the same DEV score to within about 0.001; the prior is damped by 0.5 and
-the result barely depends on it.
+The committed `submission/weights.npz` is the one in the submitted zip.
 
 Settings shipped (`meta.json`): bench_strength 2.0, subject_strength 2.0, item_strength 0.5, prior_scale 0.5, the
 domain weights above, live_rating true, max_live_ratings 60000.
