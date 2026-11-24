@@ -96,6 +96,7 @@ python experiments.py ablate    # Table 2: one shift removed at a time
 python experiments.py cache     # checks that the cache fix leaves DEV scores unchanged
 python experiments.py all       # the three above, training the 13 leave-one-out priors once
 python experiments.py sparse    # Section 5: two randomly drawn subjects per benchmark, 20 draws
+python experiments.py damping   # Section 3.1: the factor on the prior's logit, 0.3 to 1.0
 python tests/test_shift_cache.py
 ```
 
