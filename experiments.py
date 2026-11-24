@@ -5,6 +5,7 @@
     python experiments.py cache      # effect of the shift-cache fingerprint fix on the DEV score
     python experiments.py all        # the three above in one process, training the priors once
     python experiments.py sparse     # Section 5: DEV with two randomly drawn subjects per benchmark
+    python experiments.py damping    # Section 3.1: the factor that multiplies the prior's logit, 0.3 to 1.0
 
 Needs data/raw and data/feat (download.py, features.py). No API calls: ratings come from data/ratings.jsonl.
 The leave-one-benchmark-out priors are trained once per held-out benchmark and shared by every variant in a
@@ -132,6 +133,13 @@ def cache(args):
         print(f"  B{b:<2d} {old['per_budget'][b] - new['per_budget'][b]:+.6f}")
 
 
+def damping(args):
+    """The prior's logit is multiplied by a factor before it enters the model (0.5 in the submission).
+    Scores the model at several factors; 1.0 is the undamped prior. The trained priors are shared."""
+    for scale in (0.3, 0.4, 0.5, 0.6, 0.7, 1.0):
+        run(f"prior factor {scale}", ours(prior_scale=scale), args)
+
+
 def sparse(args):
     """DEV with only a few subjects per benchmark, as when a new benchmark has little coverage.
     For each draw, args.subjects subjects are chosen at random on every benchmark and all other
@@ -156,7 +164,7 @@ def sparse(args):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("experiment", choices=["main", "ablate", "cache", "all", "sparse"])
+    ap.add_argument("experiment", choices=["main", "ablate", "cache", "all", "sparse", "damping"])
     ap.add_argument("--max-eval-items", type=int, default=100, help="scored items per pair (the report uses 20)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--verbose", action="store_true", help="print the per-benchmark scores")
@@ -166,6 +174,8 @@ if __name__ == "__main__":
     if args.experiment == "sparse":
         sparse(args); sys.exit()
     todo = {"main": main_table, "ablate": ablate, "cache": cache}
+    if args.experiment == "damping":
+        todo = {"damping": damping}
     for name in (todo if args.experiment == "all" else [args.experiment]):   # "all" trains the priors once
         print(f"\n== {name} ==", flush=True)
         todo[name](args)
